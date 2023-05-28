@@ -7,7 +7,14 @@
     "url": "https://tomeraberba.ch"
   },
   "description": "Get the same key for the same sequence of values!",
-  "keywords": [],
+  "keywords": [
+    "key",
+    "key-value",
+    "map",
+    "idempotent",
+    "multiple",
+    "composite"
+  ],
   "homepage": "https://github.com/TomerAberbach/polykey",
   "repository": "TomerAberbach/polykey",
   "bugs": {
