@@ -52,6 +52,12 @@ fc.configureGlobal({
   asyncAfterEach: gc,
 })
 
+testProp(`polykey freezes the key`, [fc.array(fc.anything())], values => {
+  const key = polykey(values)
+
+  expect(key).toBeFrozen()
+})
+
 testProp(
   `polykey returns the same key for the same sequence of values`,
   [fc.array(fc.anything())],
