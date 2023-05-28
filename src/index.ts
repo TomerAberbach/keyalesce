@@ -156,13 +156,13 @@ const removeWeakEdgeToEmptyNode = (
   node: PolykeyNode,
   weak: WeakRef<object>,
 ) => {
-  // The value was early reclaimed.
+  // The value was already reclaimed.
   if (!weak.deref()) {
     return
   }
 
-  // It's possible this node was already cleaned up if multiple keys, where
-  // one is a prefix of another, were reclaimed at the same time.
+  // It's possible this node was already cleaned up if multiple keys, where one
+  // is a prefix of another, were reclaimed at the same time.
   const { weakEdges, weakRefs } = node
   if (!weakEdges) {
     return
