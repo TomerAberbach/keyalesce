@@ -52,7 +52,9 @@ fc.configureGlobal({
   asyncAfterEach: gc,
 })
 
-testProp(`polykey freezes the key`, [fc.array(fc.anything())], values => {
+const anythingArb = fc.anything({ withBigInt: true })
+
+testProp(`polykey freezes the key`, [fc.array(anythingArb)], values => {
   const key = polykey(values)
 
   expect(key).toBeFrozen()
@@ -60,7 +62,7 @@ testProp(`polykey freezes the key`, [fc.array(fc.anything())], values => {
 
 testProp(
   `polykey returns the same key for the same sequence of values`,
-  [fc.array(fc.anything())],
+  [fc.array(anythingArb)],
   values => {
     const key1 = polykey(values)
     const key2 = polykey([...values])
@@ -73,7 +75,7 @@ testProp(
 testProp(
   `polykey returns different keys for differing sequences of values`,
   [
-    fc.uniqueArray(fc.array(fc.anything()), {
+    fc.uniqueArray(fc.array(anythingArb), {
       minLength: 2,
       comparator: (a, b) =>
         a.length === b.length &&
@@ -99,7 +101,7 @@ testProp(
   [
     fc.array(
       fc.record({
-        values: fc.array(fc.anything()),
+        values: fc.array(anythingArb),
         shouldKeepKey: fc.boolean(),
       }),
     ),
@@ -128,7 +130,7 @@ testProp(
 testProp(
   `polykey prunes nodes of reclaimed keys with prefix values`,
   [
-    fc.tuple(fc.array(fc.anything()), fc.uniqueArray(fc.nat())).map(
+    fc.tuple(fc.array(anythingArb), fc.uniqueArray(fc.nat())).map(
       ([values, indices]) =>
         [
           values,
@@ -160,7 +162,7 @@ testProp(
     fc.array(
       fc.array(
         fc.record({
-          value: fc.anything(),
+          value: anythingArb,
           shouldKeepValue: fc.boolean(),
         }),
       ),
