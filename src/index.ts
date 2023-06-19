@@ -86,7 +86,7 @@ const findOrCreateKey = (nodesAndRefs: NodesAndRefs): Polykey => {
     return key
   }
 
-  key = Object.freeze({})
+  key = Object.freeze(Object.create(null) as object)
   lastNode.keyRef = new WeakRef(key)
 
   // We can't only depend on the refs for pruning because they may be reclaimed

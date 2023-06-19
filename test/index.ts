@@ -54,11 +54,16 @@ fc.configureGlobal({
 
 const anythingArb = fc.anything({ withBigInt: true })
 
-testProp(`polykey freezes the key`, [fc.array(anythingArb)], values => {
-  const key = polykey(values)
+testProp(
+  `polykey returns a frozen key with no prototype`,
+  [fc.array(anythingArb)],
+  values => {
+    const key = polykey(values)
 
-  expect(key).toBeFrozen()
-})
+    expect(key).toBeFrozen()
+    expect((key as Record<string, unknown>).prototype).toBeUndefined()
+  },
+)
 
 testProp(
   `polykey returns the same key for the same sequence of values`,
