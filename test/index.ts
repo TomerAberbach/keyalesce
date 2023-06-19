@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { setTimeout } from 'timers/promises'
 import { fc, jest, testProp } from 'tomer'
 import {
   any,
@@ -45,12 +46,11 @@ const gc = async (): Promise<void> => {
   await tick()
 }
 
+const tick = (): Promise<void> => setTimeout(0)
+
 beforeEach(gc)
 afterEach(gc)
-fc.configureGlobal({
-  asyncBeforeEach: gc,
-  asyncAfterEach: gc,
-})
+fc.configureGlobal({ asyncBeforeEach: gc, asyncAfterEach: gc })
 
 const anythingArb = fc.anything({ withBigInt: true })
 
@@ -216,8 +216,6 @@ const isObject = (value: unknown): value is object => {
   const type = typeof value
   return type === `object` ? value !== null : type === `function`
 }
-
-const tick = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 0))
 
 const getKeys = (node: PolykeyNode): Set<Polykey> =>
   pipe(
