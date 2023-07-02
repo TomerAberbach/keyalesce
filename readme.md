@@ -39,14 +39,14 @@ $ npm i keyalesce
 ```js
 import keyalesce from 'keyalesce'
 
-const hangOuts = new Set()
+const hangouts = new Set()
 
 const createHangoutKey = (person1, person2) =>
   keyalesce([person1, person2].sort())
 const hangOut = (person1, person2) =>
-  hangOuts.add(createHangoutKey(person1, person2))
+  hangouts.add(createHangoutKey(person1, person2))
 const didTheyHangOut = (person1, person2) =>
-  hangOuts.has(createHangoutKey(person1, person2))
+  hangouts.has(createHangoutKey(person1, person2))
 
 hangOut(`Tomer`, `Sam`)
 hangOut(`Tomer`, `Amanda`)
