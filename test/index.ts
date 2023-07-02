@@ -44,6 +44,8 @@ const gc = async (): Promise<void> => {
   await tick()
   global.gc!()
   await tick()
+  global.gc!()
+  await tick()
 }
 
 const tick = (): Promise<void> => setTimeout(0)
