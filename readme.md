@@ -24,7 +24,7 @@
 ## Features
 
 - **Simple:** a single function that takes an array and returns a key
-- **Tiny:** less than 600 bytes gzipped
+- **Tiny:** 580 bytes gzipped
 - **Performant:** maintains a regularly pruned internal
   [trie](https://en.wikipedia.org/wiki/Trie) of the value sequences
 
