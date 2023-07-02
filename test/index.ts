@@ -29,7 +29,7 @@ import {
   toSet,
   unique,
 } from 'lfi'
-import { keyalesce } from '../src/index.js'
+import keyalesce from '../src/index.js'
 import type { Key, TrieNode } from '../src/node.js'
 import { rootNode } from '../src/node.js'
 

@@ -17,8 +17,9 @@
 import type { Key, Primitive, TrieNode } from './node.js'
 import { rootNode } from './node.js'
 
-export const keyalesce = (iterable: Iterable<unknown>): Key =>
+const keyalesce = (iterable: Iterable<unknown>): Key =>
   findOrCreateKey(createNodesAndRefs(iterable))
+export default keyalesce
 
 const createNodesAndRefs = (iterable: Iterable<unknown>): NodesAndRefs => {
   // Find the node path corresponding to the values. Classify each value as
