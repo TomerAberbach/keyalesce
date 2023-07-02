@@ -14,22 +14,21 @@
  * limitations under the License.
  */
 
-import type { Polykey, PolykeyNode, Primitive } from './node.js'
+import type { Key, Primitive, TrieNode } from './node.js'
 import { rootNode } from './node.js'
 
-export const polykey = (iterable: Iterable<unknown>): Polykey =>
+export const keyalesce = (iterable: Iterable<unknown>): Key =>
   findOrCreateKey(createNodesAndRefs(iterable))
 
 const createNodesAndRefs = (iterable: Iterable<unknown>): NodesAndRefs => {
-  // Find the polykey node path corresponding to the values. Classify each value
-  // as object or primitive and create new nodes for new paths through the
-  // polykey tree.
+  // Find the node path corresponding to the values. Classify each value as
+  // object or primitive and create new nodes for new paths through the trie.
   const nodes = [rootNode]
   const refs: Ref[] = []
   let node = rootNode
   for (const value of iterable as Iterable<object | Primitive>) {
     // eslint-disable-next-line typescript/no-explicit-any
-    let edges: MapLike<any, PolykeyNode>
+    let edges: MapLike<any, TrieNode>
 
     if (isObject(value)) {
       let weakRef = weakRefs.get(value)
@@ -77,7 +76,7 @@ const isObject = (value: unknown): value is object => {
   return type === `object` ? value !== null : type === `function`
 }
 
-const findOrCreateKey = (nodesAndRefs: NodesAndRefs): Polykey => {
+const findOrCreateKey = (nodesAndRefs: NodesAndRefs): Key => {
   const [nodes, refs] = nodesAndRefs
   const lastNode = nodes[nodes.length - 1]!
 
@@ -91,7 +90,7 @@ const findOrCreateKey = (nodesAndRefs: NodesAndRefs): Polykey => {
 
   // We can't only depend on the refs for pruning because they may be reclaimed
   // and then we won't have a way to find the nodes that might need to be pruned
-  // without traversing the whole tree.
+  // without traversing the whole trie.
   registry.register(key, nodesAndRefs, nodesAndRefs)
   for (const { weak } of refs) {
     if (weak) {
@@ -128,7 +127,7 @@ const registry = new FinalizationRegistry<NodesAndRefs>(nodesAndRefs => {
   }
 })
 
-const removeReclaimedEdges = (node: PolykeyNode): void => {
+const removeReclaimedEdges = (node: TrieNode): void => {
   const { weakRefs } = node
   if (!weakRefs) {
     return
@@ -149,13 +148,10 @@ const removeReclaimedEdges = (node: PolykeyNode): void => {
   }
 }
 
-const isEmptyNode = ({ keyRef, strongEdges, weakRefs }: PolykeyNode): boolean =>
+const isEmptyNode = ({ keyRef, strongEdges, weakRefs }: TrieNode): boolean =>
   !keyRef?.deref() && !strongEdges?.size && !weakRefs?.size
 
-const removeWeakEdgeToEmptyNode = (
-  node: PolykeyNode,
-  weak: WeakRef<object>,
-) => {
+const removeWeakEdgeToEmptyNode = (node: TrieNode, weak: WeakRef<object>) => {
   // The value was already reclaimed.
   if (!weak.deref()) {
     return
@@ -176,7 +172,7 @@ const removeWeakEdgeToEmptyNode = (
   }
 }
 
-const removeStrongEdgeToEmptyNode = (node: PolykeyNode, strong: Primitive) => {
+const removeStrongEdgeToEmptyNode = (node: TrieNode, strong: Primitive) => {
   // It's possible this node was already cleaned up if multiple keys, where one
   // is a prefix of another, were reclaimed at the same time.
   const { strongEdges } = node
@@ -190,7 +186,7 @@ const removeStrongEdgeToEmptyNode = (node: PolykeyNode, strong: Primitive) => {
   }
 }
 
-type NodesAndRefs = [PolykeyNode[], Ref[]]
+type NodesAndRefs = [TrieNode[], Ref[]]
 
 type Ref =
   | { weak: WeakRef<object>; strong?: never }

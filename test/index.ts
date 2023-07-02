@@ -29,8 +29,8 @@ import {
   toSet,
   unique,
 } from 'lfi'
-import { polykey } from '../src/index.js'
-import type { Polykey, PolykeyNode } from '../src/node.js'
+import { keyalesce } from '../src/index.js'
+import type { Key, TrieNode } from '../src/node.js'
 import { rootNode } from '../src/node.js'
 
 jest.setTimeout(20_000)
@@ -55,10 +55,10 @@ fc.configureGlobal({ asyncBeforeEach: gc, asyncAfterEach: gc })
 const anythingArb = fc.anything({ withBigInt: true })
 
 testProp(
-  `polykey returns a frozen key with no prototype`,
+  `keyalesce returns a frozen key with no prototype`,
   [fc.array(anythingArb)],
   values => {
-    const key = polykey(values)
+    const key = keyalesce(values)
 
     expect(key).toBeFrozen()
     expect((key as Record<string, unknown>).prototype).toBeUndefined()
@@ -66,11 +66,11 @@ testProp(
 )
 
 testProp(
-  `polykey returns the same key for the same sequence of values`,
+  `keyalesce returns the same key for the same sequence of values`,
   [fc.array(anythingArb)],
   values => {
-    const key1 = polykey(values)
-    const key2 = polykey([...values])
+    const key1 = keyalesce(values)
+    const key2 = keyalesce([...values])
 
     expect(key1).toBe(key2)
     expect(getKeys(rootNode)).toStrictEqual(new Set([key1]))
@@ -78,7 +78,7 @@ testProp(
 )
 
 testProp(
-  `polykey returns different keys for differing sequences of values`,
+  `keyalesce returns different keys for differing sequences of values`,
   [
     fc.uniqueArray(fc.array(anythingArb), {
       minLength: 2,
@@ -88,7 +88,7 @@ testProp(
     }),
   ],
   arrays => {
-    const keys = arrays.map(polykey)
+    const keys = arrays.map(keyalesce)
 
     for (let index = 1; index < keys.length; index++) {
       // Hurray for transitive property!
@@ -102,7 +102,7 @@ const sameValueZero = (a: unknown, b: unknown): boolean =>
   a === b || (Number.isNaN(a) && Number.isNaN(b))
 
 testProp(
-  `polykey prunes nodes of reclaimed keys`,
+  `keyalesce prunes nodes of reclaimed keys`,
   [
     fc.array(
       fc.record({
@@ -112,7 +112,7 @@ testProp(
     ),
   ],
   async arrays => {
-    let keys: Polykey[] | null = arrays.map(({ values }) => polykey(values))
+    let keys: Key[] | null = arrays.map(({ values }) => keyalesce(values))
     const keptKeys = pipe(
       arrays,
       index,
@@ -133,7 +133,7 @@ testProp(
 )
 
 testProp(
-  `polykey prunes nodes of reclaimed keys with prefix values`,
+  `keyalesce prunes nodes of reclaimed keys with prefix values`,
   [
     fc.tuple(fc.array(anythingArb), fc.uniqueArray(fc.nat())).map(
       ([values, indices]) =>
@@ -149,7 +149,7 @@ testProp(
     ),
   ],
   async ([values, indices]) => {
-    indices.forEach(index => polykey(values.slice(0, index)))
+    indices.forEach(index => keyalesce(values.slice(0, index)))
 
     await gc()
 
@@ -162,7 +162,7 @@ testProp(
 )
 
 testProp(
-  `polykey prunes nodes of keys with reclaimed values`,
+  `keyalesce prunes nodes of keys with reclaimed values`,
   [
     fc.array(
       fc.array(
@@ -174,8 +174,8 @@ testProp(
     ),
   ],
   async arrays => {
-    const keys: Polykey[] = arrays.map(values =>
-      polykey(values.map(({ value }) => value)),
+    const keys: Key[] = arrays.map(values =>
+      keyalesce(values.map(({ value }) => value)),
     )
     pipe(
       arrays,
@@ -217,9 +217,9 @@ const isObject = (value: unknown): value is object => {
   return type === `object` ? value !== null : type === `function`
 }
 
-const getKeys = (node: PolykeyNode): Set<Polykey> =>
+const getKeys = (node: TrieNode): Set<Key> =>
   pipe(
-    traversePolykeyNodes(node),
+    traverseNodes(node),
     flatMap(({ keyRef: ref }) => {
       const key = ref?.deref()
       return key ? [key] : []
@@ -227,9 +227,9 @@ const getKeys = (node: PolykeyNode): Set<Polykey> =>
     reduce(toSet()),
   )
 
-const getInvalidNodes = (node: PolykeyNode): Set<PolykeyNode> =>
+const getInvalidNodes = (node: TrieNode): Set<TrieNode> =>
   pipe(
-    traversePolykeyNodes(node),
+    traverseNodes(node),
     filter(node => {
       const { keyRef: ref, strongEdges, weakRefs } = node
       const isEmpty = !ref && !strongEdges && !weakRefs
@@ -242,8 +242,8 @@ const getInvalidNodes = (node: PolykeyNode): Set<PolykeyNode> =>
     reduce(toSet()),
   )
 
-const traversePolykeyNodes = (node: PolykeyNode): Iterable<PolykeyNode> => ({
-  *[Symbol.iterator](): Iterator<PolykeyNode> {
+const traverseNodes = (node: TrieNode): Iterable<TrieNode> => ({
+  *[Symbol.iterator](): Iterator<TrieNode> {
     const stack = [node]
     do {
       const node = stack.pop()!

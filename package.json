@@ -1,5 +1,5 @@
 {
-  "name": "polykey",
+  "name": "keyalesce",
   "version": "0.0.0",
   "author": {
     "name": "Tomer Aberbach",
@@ -15,10 +15,10 @@
     "multiple",
     "composite"
   ],
-  "homepage": "https://github.com/TomerAberbach/polykey",
-  "repository": "TomerAberbach/polykey",
+  "homepage": "https://github.com/TomerAberbach/keyalesce",
+  "repository": "TomerAberbach/keyalesce",
   "bugs": {
-    "url": "https://github.com/TomerAberbach/polykey/issues"
+    "url": "https://github.com/TomerAberbach/keyalesce/issues"
   },
   "license": "Apache-2.0",
   "files": [

@@ -14,22 +14,22 @@
  * limitations under the License.
  */
 
-export const rootNode: PolykeyNode = {}
+export const rootNode: TrieNode = {}
 
 /**
- * A single node in the polykeys tree.
+ * A single node in the trie.
  *
- * The polykey tree tracks "paths", comprised of sequences of values, to
- * polykeys. Common path prefixes are shared between paths. It is essentially a
- * trie with strong (for primitives) and weak (for objects) edges.
+ * The trie tracks "paths", comprised of sequences of values, to keys. Common
+ * path prefixes are shared between paths. It is essentially a trie with strong
+ * (for primitives) and weak (for objects) edges.
  *
- * The tree is pruned using FinalizationRegistry when either objects in the path
- * or polykeys have no strong references to them.
+ * The trie is pruned using FinalizationRegistry when either objects in the path
+ * or keys have no strong references to them.
  */
-export type PolykeyNode = {
-  keyRef?: WeakRef<Polykey>
-  strongEdges?: Map<Primitive, PolykeyNode>
-  weakEdges?: WeakMap<object, PolykeyNode>
+export type TrieNode = {
+  keyRef?: WeakRef<Key>
+  strongEdges?: Map<Primitive, TrieNode>
+  weakEdges?: WeakMap<object, TrieNode>
 
   /**
    * A WeakMap doesn't expose its size, which we need for cleaning up empty
@@ -40,7 +40,7 @@ export type PolykeyNode = {
   weakRefs?: Set<WeakRef<object>>
 }
 
-export type Polykey = object
+export type Key = object
 
 export type Primitive =
   | null
