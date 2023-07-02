@@ -23,9 +23,10 @@
 
 ## Features
 
-- **Wow:** so amazing
-- **Amazing:** so wow
-- **Fancy:** has a tie and everything
+- **Simple:** a single function that takes an array and returns a key
+- **Tiny:** less than 600 bytes gzipped
+- **Performant:** maintains a regularly pruned internal
+  [trie](https://en.wikipedia.org/wiki/Trie) of the value sequences
 
 ## Install
 
@@ -38,9 +39,37 @@ $ npm i keyalesce
 ```js
 import keyalesce from 'keyalesce'
 
-console.log(keyalesce())
-//=> Hello World!
+const hangOuts = new Set()
+
+const createHangoutKey = (person1, person2) =>
+  keyalesce([person1, person2].sort())
+const hangOut = (person1, person2) =>
+  hangOuts.add(createHangoutKey(person1, person2))
+const didTheyHangOut = (person1, person2) =>
+  hangOuts.has(createHangoutKey(person1, person2))
+
+hangOut(`Tomer`, `Sam`)
+hangOut(`Tomer`, `Amanda`)
+
+console.log(didTheyHangOut(`Tomer`, `Sam`))
+console.log(didTheyHangOut(`Sam`, `Tomer`))
+//=> true
+//=> true
+
+console.log(didTheyHangOut(`Tomer`, `Amanda`))
+console.log(didTheyHangOut(`Amanda`, `Tomer`))
+//=> true
+//=> true
+
+console.log(didTheyHangOut(`Sam`, `Amanda`))
+console.log(didTheyHangOut(`Amanda`, `Sam`))
+//=> false
+//=> false
 ```
+
+## When would I use this and how does it work?
+
+[Read my post!](https://tomeraberba.ch/the-making-of-polykey)
 
 ## Contributing
 
