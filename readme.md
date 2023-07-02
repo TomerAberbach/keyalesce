@@ -24,13 +24,13 @@
 ## Features
 
 - **Simple:** a single function that takes an array and returns a key
-- **Tiny:** 580 bytes gzipped
+- **Tiny:** 580 bytes gzipped!
 - **Performant:** maintains a regularly pruned internal
   [trie](https://en.wikipedia.org/wiki/Trie) of the value sequences
 
 ## When would I use this and how does it work?
 
-[Read my post!](https://tomeraberba.ch/the-making-of-polykey)
+[Read my post!](https://tomeraberba.ch/the-making-of-keyalesce)
 
 ## Install
 
