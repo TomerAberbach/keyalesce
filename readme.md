@@ -28,6 +28,10 @@
 - **Performant:** maintains a regularly pruned internal
   [trie](https://en.wikipedia.org/wiki/Trie) of the value sequences
 
+## When would I use this and how does it work?
+
+[Read my post!](https://tomeraberba.ch/the-making-of-polykey)
+
 ## Install
 
 ```sh
@@ -66,10 +70,6 @@ console.log(didTheyHangOut(`Amanda`, `Sam`))
 //=> false
 //=> false
 ```
-
-## When would I use this and how does it work?
-
-[Read my post!](https://tomeraberba.ch/the-making-of-polykey)
 
 ## Contributing
 
