@@ -13,9 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-import { setTimeout } from 'timers/promises'
-import { fc, jest, testProp } from 'tomer'
 import {
   any,
   filter,
@@ -29,6 +26,8 @@ import {
   toSet,
   unique,
 } from 'lfi'
+import { setTimeout } from 'timers/promises'
+import { fc, jest, testProp } from 'tomer'
 import keyalesce from '../src/index.js'
 import type { Key, TrieNode } from '../src/node.js'
 import { rootNode } from '../src/node.js'

@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 import type { Key, Primitive, TrieNode } from './node.js'
 import { rootNode } from './node.js'
 
