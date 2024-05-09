@@ -13,6 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+import { setTimeout } from 'node:timers/promises'
 import {
   any,
   filter,
@@ -26,8 +28,7 @@ import {
   toSet,
   unique,
 } from 'lfi'
-import { setTimeout } from 'timers/promises'
-import { fc, jest, testProp } from 'tomer'
+import { fc, jest, test } from 'tomer'
 import keyalesce from '../src/index.js'
 import type { Key, TrieNode } from '../src/node.js'
 import { rootNode } from '../src/node.js'
@@ -53,9 +54,8 @@ fc.configureGlobal({ asyncBeforeEach: gc, asyncAfterEach: gc })
 
 const anythingArb = fc.anything({ withBigInt: true })
 
-testProp(
+test.prop([fc.array(anythingArb)])(
   `keyalesce returns a frozen key with no prototype`,
-  [fc.array(anythingArb)],
   values => {
     const key = keyalesce(values)
 
@@ -64,9 +64,8 @@ testProp(
   },
 )
 
-testProp(
+test.prop([fc.array(anythingArb)])(
   `keyalesce returns the same key for the same sequence of values`,
-  [fc.array(anythingArb)],
   values => {
     const key1 = keyalesce(values)
     const key2 = keyalesce([...values])
@@ -76,16 +75,15 @@ testProp(
   },
 )
 
-testProp(
+test.prop([
+  fc.uniqueArray(fc.array(anythingArb), {
+    minLength: 2,
+    comparator: (a, b) =>
+      a.length === b.length &&
+      a.every((value, index) => sameValueZero(value, b[index])),
+  }),
+])(
   `keyalesce returns different keys for differing sequences of values`,
-  [
-    fc.uniqueArray(fc.array(anythingArb), {
-      minLength: 2,
-      comparator: (a, b) =>
-        a.length === b.length &&
-        a.every((value, index) => sameValueZero(value, b[index])),
-    }),
-  ],
   arrays => {
     const keys = arrays.map(keyalesce)
 
@@ -100,53 +98,48 @@ testProp(
 const sameValueZero = (a: unknown, b: unknown): boolean =>
   a === b || (Number.isNaN(a) && Number.isNaN(b))
 
-testProp(
-  `keyalesce prunes nodes of reclaimed keys`,
-  [
-    fc.array(
-      fc.record({
-        values: fc.array(anythingArb),
-        shouldKeepKey: fc.boolean(),
-      }),
-    ),
-  ],
-  async arrays => {
-    let keys: Key[] | null = arrays.map(({ values }) => keyalesce(values))
-    const keptKeys = pipe(
-      arrays,
-      index,
-      filter(([, { shouldKeepKey }]) => shouldKeepKey),
-      map(([index]) => keys![index]),
-      reduce(toSet()),
-    )
-    keys = null
+test.prop([
+  fc.array(
+    fc.record({
+      values: fc.array(anythingArb),
+      shouldKeepKey: fc.boolean(),
+    }),
+  ),
+])(`keyalesce prunes nodes of reclaimed keys`, async arrays => {
+  let keys: Key[] | null = arrays.map(({ values }) => keyalesce(values))
+  const keptKeys = pipe(
+    arrays,
+    index,
+    filter(([, { shouldKeepKey }]) => shouldKeepKey),
+    map(([index]) => keys![index]),
+    reduce(toSet()),
+  )
+  keys = null
 
-    await gc()
+  await gc()
 
-    expect(getKeys(rootNode)).toStrictEqual(keptKeys)
-    expect(getInvalidNodes(rootNode)).toStrictEqual(new Set())
+  expect(getKeys(rootNode)).toStrictEqual(keptKeys)
+  expect(getInvalidNodes(rootNode)).toStrictEqual(new Set())
 
-    // Ensure values can't be reclaimed by `gc` above.
-    expect(arrays).toBe(arrays)
-  },
-)
+  // Ensure values can't be reclaimed by `gc` above.
+  expect(arrays).toBe(arrays)
+})
 
-testProp(
+test.prop([
+  fc.tuple(fc.array(anythingArb), fc.uniqueArray(fc.nat())).map(
+    ([values, indices]) =>
+      [
+        values,
+        pipe(
+          indices,
+          map(index => index % (values.length + 1)),
+          unique,
+          reduce(toArray()),
+        ),
+      ] as const,
+  ),
+])(
   `keyalesce prunes nodes of reclaimed keys with prefix values`,
-  [
-    fc.tuple(fc.array(anythingArb), fc.uniqueArray(fc.nat())).map(
-      ([values, indices]) =>
-        [
-          values,
-          pipe(
-            indices,
-            map(index => index % (values.length + 1)),
-            unique,
-            reduce(toArray()),
-          ),
-        ] as const,
-    ),
-  ],
   async ([values, indices]) => {
     indices.forEach(index => keyalesce(values.slice(0, index)))
 
@@ -160,56 +153,50 @@ testProp(
   },
 )
 
-testProp(
-  `keyalesce prunes nodes of keys with reclaimed values`,
-  [
+test.prop([
+  fc.array(
     fc.array(
-      fc.array(
-        fc.record({
-          value: anythingArb,
-          shouldKeepValue: fc.boolean(),
-        }),
-      ),
+      fc.record({
+        value: anythingArb,
+        shouldKeepValue: fc.boolean(),
+      }),
     ),
-  ],
-  async arrays => {
-    const keys: Key[] = arrays.map(values =>
-      keyalesce(values.map(({ value }) => value)),
-    )
-    pipe(
-      arrays,
-      flatMap(values =>
-        pipe(
-          values,
-          index,
-          flatMap(([index, { value, shouldKeepValue }]) =>
-            isObject(value) && !shouldKeepValue
-              ? [[values, index] as const]
-              : [],
-          ),
+  ),
+])(`keyalesce prunes nodes of keys with reclaimed values`, async arrays => {
+  const keys: Key[] = arrays.map(values =>
+    keyalesce(values.map(({ value }) => value)),
+  )
+  pipe(
+    arrays,
+    flatMap(values =>
+      pipe(
+        values,
+        index,
+        flatMap(([index, { value, shouldKeepValue }]) =>
+          isObject(value) && !shouldKeepValue ? [[values, index] as const] : [],
         ),
       ),
-      forEach(([values, index]) => (values[index]!.value = null)),
-    )
-    const keptKeys = pipe(
-      arrays,
-      index,
-      filter(([, values]) =>
-        values.every(({ value }) => !isObject(value) || Boolean(value)),
-      ),
-      map(([index]) => keys[index]),
-      reduce(toSet()),
-    )
+    ),
+    forEach(([values, index]) => (values[index]!.value = null)),
+  )
+  const keptKeys = pipe(
+    arrays,
+    index,
+    filter(([, values]) =>
+      values.every(({ value }) => !isObject(value) || Boolean(value)),
+    ),
+    map(([index]) => keys[index]),
+    reduce(toSet()),
+  )
 
-    await gc()
+  await gc()
 
-    expect(getKeys(rootNode)).toStrictEqual(keptKeys)
-    expect(getInvalidNodes(rootNode)).toStrictEqual(new Set())
+  expect(getKeys(rootNode)).toStrictEqual(keptKeys)
+  expect(getInvalidNodes(rootNode)).toStrictEqual(new Set())
 
-    // Ensure keys can't be reclaimed by `gc` above.
-    expect(keys).toBe(keys)
-  },
-)
+  // Ensure keys can't be reclaimed by `gc` above.
+  expect(keys).toBe(keys)
+})
 
 const isObject = (value: unknown): value is object => {
   const type = typeof value
@@ -233,8 +220,8 @@ const getInvalidNodes = (node: TrieNode): Set<TrieNode> =>
       const { keyRef: ref, strongEdges, weakRefs } = node
       const isEmpty = !ref && !strongEdges && !weakRefs
       const hasEmptyValues =
-        (ref && !ref.deref()) ||
-        (strongEdges && !strongEdges.size) ||
+        (ref && !ref.deref()) ??
+        (strongEdges && !strongEdges.size) ??
         (weakRefs && (!weakRefs.size || any(ref => !ref.deref(), weakRefs)))
       return (node !== rootNode && isEmpty) || hasEmptyValues
     }),

@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 import type { Key, Primitive, TrieNode } from './node.js'
 import { rootNode } from './node.js'
 
@@ -69,7 +70,7 @@ type MapLike<K, V> = {
  * tracking WeakMap size could have multiple WeakRefs for the same object and
  * the size would not reflect the true size of the WeakMap.
  */
-const weakRefs: WeakMap<object, WeakRef<object>> = new WeakMap()
+const weakRefs = new WeakMap<object, WeakRef<object>>()
 
 const isObject = (value: unknown): value is object => {
   const type = typeof value
@@ -78,7 +79,7 @@ const isObject = (value: unknown): value is object => {
 
 const findOrCreateKey = (nodesAndRefs: NodesAndRefs): Key => {
   const [nodes, refs] = nodesAndRefs
-  const lastNode = nodes[nodes.length - 1]!
+  const lastNode = nodes.at(-1)!
 
   let key = lastNode.keyRef?.deref()
   if (key) {

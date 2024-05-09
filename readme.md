@@ -9,11 +9,11 @@
   <a href="https://github.com/TomerAberbach/keyalesce/actions">
     <img src="https://github.com/TomerAberbach/keyalesce/workflows/CI/badge.svg" alt="CI" />
   </a>
-  <a href="https://unpkg.com/keyalesce/dist/index.min.js">
-    <img src="http://img.badgesize.io/https://unpkg.com/keyalesce/dist/index.min.js?compression=gzip&label=gzip" alt="gzip size" />
+  <a href="https://unpkg.com/keyalesce/dist/index.js">
+    <img src="https://deno.bundlejs.com/?q=keyalesce&badge" alt="gzip size" />
   </a>
-  <a href="https://unpkg.com/keyalesce/dist/index.min.js">
-    <img src="http://img.badgesize.io/https://unpkg.com/keyalesce/dist/index.min.js?compression=brotli&label=brotli" alt="brotli size" />
+  <a href="https://unpkg.com/keyalesce/dist/index.js">
+    <img src="https://deno.bundlejs.com/?q=keyalesce&config={%22compression%22:{%22type%22:%22brotli%22}}&badge" alt="brotli size" />
   </a>
 </div>
 
@@ -52,11 +52,11 @@ const hangOut = (person1, person2) =>
 const didTheyHangOut = (person1, person2) =>
   hangouts.has(createHangoutKey(person1, person2))
 
-hangOut(`Tomer`, `Sam`)
+hangOut(`Tomer`, `Samuel`)
 hangOut(`Tomer`, `Amanda`)
 
-console.log(didTheyHangOut(`Tomer`, `Sam`))
-console.log(didTheyHangOut(`Sam`, `Tomer`))
+console.log(didTheyHangOut(`Tomer`, `Samuel`))
+console.log(didTheyHangOut(`Samuel`, `Tomer`))
 //=> true
 //=> true
 
@@ -65,8 +65,8 @@ console.log(didTheyHangOut(`Amanda`, `Tomer`))
 //=> true
 //=> true
 
-console.log(didTheyHangOut(`Sam`, `Amanda`))
-console.log(didTheyHangOut(`Amanda`, `Sam`))
+console.log(didTheyHangOut(`Samuel`, `Amanda`))
+console.log(didTheyHangOut(`Amanda`, `Samuel`))
 //=> false
 //=> false
 ```
