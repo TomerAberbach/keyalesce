@@ -9,10 +9,10 @@
   <a href="https://github.com/TomerAberbach/keyalesce/actions">
     <img src="https://github.com/TomerAberbach/keyalesce/workflows/CI/badge.svg" alt="CI" />
   </a>
-  <a href="https://unpkg.com/keyalesce/dist/index.js">
+  <a href="https://unpkg.com/keyalesce/dist/index.min.js">
     <img src="https://deno.bundlejs.com/?q=keyalesce&badge" alt="gzip size" />
   </a>
-  <a href="https://unpkg.com/keyalesce/dist/index.js">
+  <a href="https://unpkg.com/keyalesce/dist/index.min.js">
     <img src="https://deno.bundlejs.com/?q=keyalesce&config={%22compression%22:{%22type%22:%22brotli%22}}&badge" alt="brotli size" />
   </a>
 </div>
