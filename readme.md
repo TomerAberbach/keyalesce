@@ -81,11 +81,9 @@ Stars are always welcome!
 For bugs and feature requests,
 [please create an issue](https://github.com/TomerAberbach/keyalesce/issues/new).
 
-For pull requests, please read the
-[contributing guidelines](https://github.com/TomerAberbach/keyalesce/blob/main/contributing.md).
-
 ## License
 
-[Apache License 2.0](https://github.com/TomerAberbach/keyalesce/blob/main/license)
-
-This is not an official Google product.
+[MIT](https://github.com/TomerAberbach/keyalesce/blob/main/license) ©
+[Tomer Aberbach](https://github.com/TomerAberbach) \
+[Apache 2.0](https://github.com/TomerAberbach/keyalesce/blob/main/license-apache)
+© [Google](https://github.com/TomerAberbach/keyalesce/blob/main/notice-apache)
