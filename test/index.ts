@@ -12,12 +12,11 @@ import {
   toSet,
   unique,
 } from 'lfi'
-import { fc, jest, test } from 'tomer'
+import { fc, test } from '@fast-check/vitest'
+import { afterEach, beforeEach, expect } from 'vitest'
 import keyalesce from '../src/index.js'
 import type { Key, TrieNode } from '../src/node.js'
 import { rootNode } from '../src/node.js'
-
-jest.setTimeout(20_000)
 
 const gc = async (): Promise<void> => {
   // A single round of garbage-collection sometimes doesn't seem to be enough to
@@ -125,7 +124,9 @@ test.prop([
 ])(
   `keyalesce prunes nodes of reclaimed keys with prefix values`,
   async ([values, indices]) => {
-    indices.forEach(index => keyalesce(values.slice(0, index)))
+    for (const index of indices) {
+      keyalesce(values.slice(0, index))
+    }
 
     await gc()
 

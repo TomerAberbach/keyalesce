@@ -12,7 +12,6 @@ const createNodesAndRefs = (iterable: Iterable<unknown>): NodesAndRefs => {
   const refs: Ref[] = []
   let node = rootNode
   for (const value of iterable as Iterable<object | Primitive>) {
-    // eslint-disable-next-line typescript/no-explicit-any
     let edges: MapLike<any, TrieNode>
 
     if (isObject(value)) {
@@ -95,7 +94,9 @@ const registry = new FinalizationRegistry<NodesAndRefs>(nodesAndRefs => {
   // Free the key and remove reclaimed weak refs from affected nodes.
   const lastIndex = nodes.length - 1
   delete nodes[lastIndex]!.keyRef
-  nodes.forEach(removeReclaimedEdges)
+  for (const node of nodes) {
+    removeReclaimedEdges(node)
+  }
 
   for (
     let index = lastIndex;
