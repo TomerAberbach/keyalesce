@@ -14,9 +14,9 @@ import {
 } from 'lfi'
 import { fc, test } from '@fast-check/vitest'
 import { afterEach, beforeEach, expect } from 'vitest'
-import keyalesce from '../src/index.js'
-import type { Key, TrieNode } from '../src/node.js'
-import { rootNode } from '../src/node.js'
+import keyalesce from './index.ts'
+import type { Key, TrieNode } from './node.ts'
+import { rootNode } from './node.ts'
 
 const gc = async (): Promise<void> => {
   // A single round of garbage-collection sometimes doesn't seem to be enough to

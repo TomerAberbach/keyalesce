@@ -1,5 +1,5 @@
-import type { Key, Primitive, TrieNode } from './node.js'
-import { rootNode } from './node.js'
+import type { Key, Primitive, TrieNode } from './node.ts'
+import { rootNode } from './node.ts'
 
 const keyalesce = (iterable: Iterable<unknown>): Key =>
   findOrCreateKey(createNodesAndRefs(iterable))
