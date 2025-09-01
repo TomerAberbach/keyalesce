@@ -1,5 +1,4 @@
 import { defineConfig } from 'tsdown/config'
-import treeShakeable from 'rollup-plugin-tree-shakeable'
 import terser from '@rollup/plugin-terser'
 
 export default defineConfig([
@@ -15,7 +14,6 @@ export default defineConfig([
           properties: true,
         },
       }),
-      treeShakeable(),
     ],
   },
   {

@@ -38,9 +38,6 @@ importers:
       publint:
         specifier: ^0.3.12
         version: 0.3.12
-      rollup-plugin-tree-shakeable:
-        specifier: ^1.0.3
-        version: 1.0.3
       tsdown:
         specifier: ^0.14.2
         version: 0.14.2(publint@0.3.12)(typescript@5.9.2)
@@ -2199,10 +2196,6 @@ packages:
     resolution: {integrity: sha512-Wwh7EwalMzzX3Yy3VN58VEajeR2Si8+HDNMf706jPLIqU7CxneRW+dQVfznf5O0TWTnJyu4npelwg2bzTXB1Nw==}
     hasBin: true
 
-  rollup-plugin-tree-shakeable@1.0.3:
-    resolution: {integrity: sha512-A4c06mvUYIuYMN2NJnnPNh5AZlW3KzisCXSENBABUFK4HDgLycuKRsDMRFT21P5CfijoHIo7FDdrVrOGFce4vg==}
-    engines: {node: '>= 18'}
-
   rollup@4.50.0:
     resolution: {integrity: sha512-/Zl4D8zPifNmyGzJS+3kVoyXeDeT/GrsJM94sACNg9RtUE0hrHa1bNPtRSrfHTMH5HjRzce6K7rlTh3Khiw+pw==}
     engines: {node: '>=18.0.0', npm: '>=8.0.0'}
@@ -3213,6 +3206,7 @@ snapshots:
   '@types/node@22.18.0':
     dependencies:
       undici-types: 6.21.0
+    optional: true
 
   '@types/unist@2.0.11': {}
 
@@ -4925,12 +4919,6 @@ snapshots:
       '@rolldown/binding-win32-ia32-msvc': 1.0.0-beta.34
       '@rolldown/binding-win32-x64-msvc': 1.0.0-beta.34
 
-  rollup-plugin-tree-shakeable@1.0.3:
-    dependencies:
-      '@types/node': 22.18.0
-      estree-walker: 3.0.3
-      magic-string: 0.30.18
-
   rollup@4.50.0:
     dependencies:
       '@types/estree': 1.0.8
@@ -5334,7 +5322,8 @@ snapshots:
       jiti: 2.5.1
       quansync: 0.2.11
 
-  undici-types@6.21.0: {}
+  undici-types@6.21.0:
+    optional: true
 
   unist-util-stringify-position@2.0.3:
     dependencies:
