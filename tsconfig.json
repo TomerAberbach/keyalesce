@@ -24,5 +24,6 @@
     // Runtime
     "lib": ["esnext"]
   },
-  "include": ["**/*"]
+  "include": ["**/*"],
+  "exclude": ["node_modules"]
 }

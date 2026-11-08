@@ -16,7 +16,10 @@
     "composite"
   ],
   "homepage": "https://github.com/TomerAberbach/keyalesce",
-  "repository": "TomerAberbach/keyalesce",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TomerAberbach/keyalesce.git"
+  },
   "bugs": {
     "url": "https://github.com/TomerAberbach/keyalesce/issues"
   },
@@ -43,13 +46,16 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "format": "prettier --cache --write .",
-    "lint": "eslint --cache --cache-location node_modules/.cache/eslint/ --fix .",
+    "format:base": "prettier --cache --write",
+    "format": "pnpm format:base .",
+    "lint:base": "eslint --cache --cache-location node_modules/.cache/eslint/ --fix",
+    "lint": "pnpm lint:base .",
     "typecheck": "tsc --noEmit",
+    "knip": "knip",
     "test": "vitest",
     "coverage": "vitest --coverage",
-    "bench": "vitest bench",
     "build": "tsdown",
+    "check": "npm-run-all -c -l -s build -p typecheck \"lint --no-fix\" \"format --no-write --check\" knip \"test --run\"",
     "prepublishOnly": "pnpm build"
   },
   "prettier": "@tomer/prettier-config",
@@ -63,9 +69,12 @@
     "eslint": "^10.14.0",
     "jest-extended": "^7.0.0",
     "jsdom": "^31.0.0",
+    "knip": "^6.44.1",
     "lfi": "^4.1.2",
+    "npm-run-all2": "^9.0.4",
     "prettier": "^3.9.10",
     "publint": "^0.3.25",
+    "rollup-plugin-tree-shakeable": "^2.0.0",
     "tsdown": "^0.23.7",
     "typescript": "^6.0.3",
     "vitest": "^5.1.0"

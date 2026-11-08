@@ -4,19 +4,19 @@
 
 <div align="center">
   <a href="https://npmjs.org/package/keyalesce">
-    <img src="https://badgen.now.sh/npm/v/keyalesce" alt="version" />
+    <img src="https://badgen.net/npm/v/keyalesce" alt="version" />
   </a>
-  <a href="https://github.com/TomerAberbach/keyalesce/actions">
-    <img src="https://github.com/TomerAberbach/keyalesce/workflows/CI/badge.svg" alt="CI" />
+  <a href="https://github.com/TomerAberbach/keyalesce/actions/workflows/ci.yml">
+    <img src="https://github.com/TomerAberbach/keyalesce/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" />
   </a>
-  <a href="https://unpkg.com/keyalesce/dist/index.min.js">
+  <a href="https://unpkg.com/keyalesce/dist/index.js">
     <img src="https://deno.bundlejs.com/?q=keyalesce&badge" alt="gzip size" />
   </a>
-  <a href="https://unpkg.com/keyalesce/dist/index.min.js">
+  <a href="https://unpkg.com/keyalesce/dist/index.js">
     <img src="https://deno.bundlejs.com/?q=keyalesce&config={%22compression%22:{%22type%22:%22brotli%22}}&badge" alt="brotli size" />
   </a>
   <a href="https://github.com/sponsors/TomerAberbach">
-    <img src="https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&color=%23fe8e86" alt="Sponsor">
+    <img src="https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&color=%23fe8e86" alt="Sponsor" />
   </a>
 </div>
 
@@ -24,10 +24,16 @@
   Get the same key for the same sequence of values!
 </div>
 
+<div align="center">
+  <a href="#features">Features</a> •
+  <a href="#install">Install</a> •
+  <a href="#usage">Usage</a>
+</div>
+
 ## Features
 
 - **Simple:** a single function that takes an array and returns a key
-- **Tiny:** 580 bytes gzipped!
+- **Tiny:** 593 bytes gzipped!
 - **Performant:** maintains a regularly pruned internal
   [trie](https://en.wikipedia.org/wiki/Trie) of the value sequences
 
@@ -79,7 +85,7 @@ console.log(didTheyHangOut(`Amanda`, `Samuel`))
 Stars are always welcome!
 
 For bugs and feature requests,
-[please create an issue](https://github.com/TomerAberbach/keyalesce/issues/new).
+[create an issue](https://github.com/TomerAberbach/keyalesce/issues/new).
 
 ## License
 
