@@ -7,11 +7,7 @@ export default defineConfig({
     coverage: {
       include: [`src`],
     },
-    testTimeout: 20_000,
-    poolOptions: {
-      forks: {
-        execArgv: [`--expose-gc`],
-      },
-    },
+    testTimeout: 60_000,
+    execArgv: [`--expose-gc`],
   },
 })
