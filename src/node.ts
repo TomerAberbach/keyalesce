@@ -27,10 +27,4 @@ export type TrieNode = {
 export type Key = object
 
 export type Primitive =
-  | null
-  | undefined
-  | string
-  | number
-  | boolean
-  | symbol
-  | bigint
+  null | undefined | string | number | boolean | symbol | bigint

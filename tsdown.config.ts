@@ -1,5 +1,5 @@
-import { defineConfig } from 'tsdown/config'
 import terser from '@rollup/plugin-terser'
+import { defineConfig } from 'tsdown/config'
 
 export default defineConfig([
   {
@@ -18,6 +18,6 @@ export default defineConfig([
   },
   {
     entry: `src/index.ts`,
-    dts: { emitDtsOnly: true },
+    dts: { dtsOnly: true },
   },
 ])

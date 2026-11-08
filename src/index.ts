@@ -12,6 +12,7 @@ const createNodesAndRefs = (iterable: Iterable<unknown>): NodesAndRefs => {
   const refs: Ref[] = []
   let node = rootNode
   for (const value of iterable as Iterable<object | Primitive>) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let edges: MapLike<any, TrieNode>
 
     if (isObject(value)) {

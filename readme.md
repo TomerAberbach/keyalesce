@@ -56,7 +56,7 @@ const didTheyHangOut = (person1, person2) =>
   hangouts.has(createHangoutKey(person1, person2))
 
 hangOut(`Tomer`, `Samuel`)
-hangOut(`Tomer`, `Amanda`)
+hangOut(`Amanda`, `Tomer`)
 
 console.log(didTheyHangOut(`Tomer`, `Samuel`))
 console.log(didTheyHangOut(`Samuel`, `Tomer`))

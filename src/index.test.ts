@@ -1,4 +1,5 @@
 import { setTimeout } from 'node:timers/promises'
+import { fc, test } from '@fast-check/vitest'
 import {
   any,
   filter,
@@ -12,7 +13,6 @@ import {
   toSet,
   unique,
 } from 'lfi'
-import { fc, test } from '@fast-check/vitest'
 import { afterEach, beforeEach, expect } from 'vitest'
 import keyalesce from './index.ts'
 import type { Key, TrieNode } from './node.ts'
@@ -23,9 +23,9 @@ const gc = async (): Promise<void> => {
   // reclaim between tests or within tests. Run a couple of rounds to ensure
   // everything that can be reclaimed is reclaimed.
   await tick()
-  global.gc!()
+  globalThis.gc!()
   await tick()
-  global.gc!()
+  globalThis.gc!()
   await tick()
 }
 
@@ -33,7 +33,8 @@ const tick = (): Promise<void> => setTimeout(0)
 
 beforeEach(gc)
 afterEach(gc)
-fc.configureGlobal({ asyncBeforeEach: gc, asyncAfterEach: gc })
+fc.installGlobalPlugin(fc.beforeEach(gc))
+fc.installGlobalPlugin(fc.afterEach(gc))
 
 const anythingArb = fc.anything({ withBigInt: true })
 
@@ -61,9 +62,9 @@ test.prop([fc.array(anythingArb)])(
 test.prop([
   fc.uniqueArray(fc.array(anythingArb), {
     minLength: 2,
-    comparator: (a, b) =>
-      a.length === b.length &&
-      a.every((value, index) => sameValueZero(value, b[index])),
+    comparator: (left, right) =>
+      left.length === right.length &&
+      left.every((value, index) => sameValueZero(value, right[index])),
   }),
 ])(
   `keyalesce returns different keys for differing sequences of values`,
@@ -78,8 +79,8 @@ test.prop([
   },
 )
 
-const sameValueZero = (a: unknown, b: unknown): boolean =>
-  a === b || (Number.isNaN(a) && Number.isNaN(b))
+const sameValueZero = (left: unknown, right: unknown): boolean =>
+  left === right || (Number.isNaN(left) && Number.isNaN(right))
 
 test.prop([
   fc.array(
