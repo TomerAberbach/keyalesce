@@ -1,22 +1,10 @@
 import { setTimeout } from 'node:timers/promises'
 import { fc, test } from '@fast-check/vitest'
-import {
-  any,
-  filter,
-  flatMap,
-  forEach,
-  index,
-  map,
-  pipe,
-  reduce,
-  toArray,
-  toSet,
-  unique,
-} from 'lfi'
+import { any, filter, flatMap, map, pipe, reduce, toMap, toSet } from 'lfi'
 import { afterEach, beforeEach, expect } from 'vitest'
 import keyalesce from './index.ts'
 import type { Key, TrieNode } from './node.ts'
-import { rootNode } from './node.ts'
+import { resetRootNode, rootNode } from './node.ts'
 
 const gc = async (): Promise<void> => {
   // A single round of garbage-collection sometimes doesn't seem to be enough to
@@ -33,8 +21,12 @@ const tick = (): Promise<void> => setTimeout(0)
 
 beforeEach(gc)
 afterEach(gc)
-fc.installGlobalPlugin(fc.beforeEach(gc))
-fc.installGlobalPlugin(fc.afterEach(gc))
+fc.installGlobalPlugin(
+  fc.beforeEach(async () => {
+    await gc()
+    resetRootNode()
+  }),
+)
 
 const anythingArb = fc.anything({ withBigInt: true })
 
@@ -48,141 +40,200 @@ test.prop([fc.array(anythingArb)])(
   },
 )
 
-test.prop([fc.array(anythingArb)])(
-  `keyalesce returns the same key for the same sequence of values`,
-  values => {
-    const key1 = keyalesce(values)
-    const key2 = keyalesce([...values])
-
-    expect(key1).toBe(key2)
-    expect(getKeys(rootNode)).toStrictEqual(new Set([key1]))
-  },
-)
-
-test.prop([
-  fc.uniqueArray(fc.array(anythingArb), {
-    minLength: 2,
-    comparator: (left, right) =>
-      left.length === right.length &&
-      left.every((value, index) => sameValueZero(value, right[index])),
-  }),
-])(
-  `keyalesce returns different keys for differing sequences of values`,
-  arrays => {
-    const keys = arrays.map(keyalesce)
-
-    for (let index = 1; index < keys.length; index++) {
-      // Hurray for transitive property!
-      expect(keys[index - 1]).not.toBe(keys[index])
-    }
-    expect(getKeys(rootNode)).toStrictEqual(new Set(keys))
-  },
-)
+const isSameSequence = (left: unknown[], right: unknown[]): boolean =>
+  left.length === right.length &&
+  left.every((value, index) => sameValueZero(value, right[index]))
 
 const sameValueZero = (left: unknown, right: unknown): boolean =>
   left === right || (Number.isNaN(left) && Number.isNaN(right))
 
-test.prop([
-  fc.array(
-    fc.record({
-      values: fc.array(anythingArb),
-      shouldKeepKey: fc.boolean(),
+/**
+ * Keys are stored by sequence ID, so errors contain IDs, which are indices into
+ * the counterexample's sequences.
+ */
+type Model = {
+  /** The index of the first sequence equal to each sequence. */
+  sequenceIds: number[]
+
+  /** The IDs of the objects in each sequence. */
+  objectIds: number[][]
+
+  objectCount: number
+  held: Map<number, Key>
+  dropped: Set<number>
+}
+
+type Real = (unknown[] | undefined)[]
+
+type ModelCommand = fc.AsyncCommand<Model, Real>
+
+const createModel = (sequences: unknown[][]): Model => {
+  const ids = new Map<object, number>()
+  const objectIds = sequences.map(sequence =>
+    sequence.filter(isObject).map(value => {
+      let id = ids.get(value)
+      if (id === undefined) {
+        ids.set(value, (id = ids.size))
+      }
+      return id
     }),
-  ),
-])(`keyalesce prunes nodes of reclaimed keys`, async arrays => {
-  let keys: Key[] | null = arrays.map(({ values }) => keyalesce(values))
-  const keptKeys = pipe(
-    arrays,
-    index,
-    filter(([, { shouldKeepKey }]) => shouldKeepKey),
-    map(([index]) => keys![index]),
-    reduce(toSet()),
   )
-  keys = null
+  return {
+    sequenceIds: sequences.map(sequence =>
+      sequences.findIndex(other => isSameSequence(other, sequence)),
+    ),
+    objectIds,
+    objectCount: ids.size,
+    held: new Map(),
+    dropped: new Set(),
+  }
+}
 
-  await gc()
+const isLive = (model: Readonly<Model>, index: number): boolean =>
+  model.objectIds[index]!.every(id => !model.dropped.has(id))
 
-  expect(getKeys(rootNode)).toStrictEqual(keptKeys)
-  expect(getInvalidNodes(rootNode)).toStrictEqual(new Set())
-
-  // Ensure values can't be reclaimed by `gc` above.
-  expect(arrays).toBe(arrays)
+const command = ({
+  check = () => true,
+  run,
+  description,
+}: {
+  check?: (model: Readonly<Model>) => boolean
+  run: (model: Model, real: Real) => void | Promise<void>
+  description: string
+}): ModelCommand => ({
+  check,
+  run: async (model, real) => run(model, real),
+  toString: () => description,
 })
 
+// Commands contain unbounded indices, which are taken modulo the number of
+// sequences or objects, so commands stay valid while fast-check shrinks the
+// sequences.
+
+const sequenceIndex = (model: Readonly<Model>, rawIndex: number): number =>
+  rawIndex % model.sequenceIds.length
+
+const callCommand = (rawIndex: number): ModelCommand =>
+  command({
+    check: model => isLive(model, sequenceIndex(model, rawIndex)),
+    run: (model, real) => {
+      const index = sequenceIndex(model, rawIndex)
+      const id = model.sequenceIds[index]!
+      const key = keyalesce([...real[index]!])
+
+      const heldKey = model.held.get(id)
+      if (heldKey && key !== heldKey) {
+        throw new Error(`Got a new key for held sequence #${id}`)
+      }
+      for (const [otherId, otherKey] of model.held) {
+        if (otherId !== id && otherKey === key) {
+          throw new Error(`Got sequence #${otherId}'s key for sequence #${id}`)
+        }
+      }
+
+      model.held.set(id, key)
+    },
+    description: `call(${rawIndex})`,
+  })
+
+const releaseCommand = (rawIndex: number): ModelCommand => {
+  const idIn = (model: Readonly<Model>) =>
+    model.sequenceIds[sequenceIndex(model, rawIndex)]!
+  return command({
+    check: model => model.held.has(idIn(model)),
+    run: model => {
+      model.held.delete(idIn(model))
+    },
+    description: `release(${rawIndex})`,
+  })
+}
+
+const dropValueCommand = (rawIndex: number): ModelCommand => {
+  const idIn = (model: Readonly<Model>) => rawIndex % model.objectCount
+  return command({
+    check: model => model.objectCount > 0 && !model.dropped.has(idIn(model)),
+    run: (model, real) => {
+      const id = idIn(model)
+      model.dropped.add(id)
+      for (const [index, ids] of model.objectIds.entries()) {
+        if (ids.includes(id)) {
+          real[index] = undefined
+        }
+      }
+    },
+    description: `dropValue(${rawIndex})`,
+  })
+}
+
+const gcCommand = command({ run: () => globalThis.gc!(), description: `gc` })
+
+const tickCommand = command({ run: tick, description: `tick` })
+
 test.prop([
-  fc.tuple(fc.array(anythingArb), fc.uniqueArray(fc.nat())).map(
-    ([values, indices]) =>
+  fc.record({
+    sequences: fc
+      .record({
+        base: fc.array(anythingArb),
+        variants: fc.array(fc.tuple(fc.nat(), fc.array(anythingArb)), {
+          minLength: 1,
+        }),
+      })
+      .map(({ base, variants }) =>
+        variants.map(([prefixLength, suffix]) => [
+          ...base.slice(0, prefixLength % (base.length + 1)),
+          ...suffix,
+        ]),
+      ),
+    commands: fc.commands(
       [
-        values,
-        pipe(
-          indices,
-          map(index => index % (values.length + 1)),
-          unique,
-          reduce(toArray()),
-        ),
-      ] as const,
-  ),
+        fc.nat().map(callCommand),
+        fc.nat().map(releaseCommand),
+        fc.nat().map(dropValueCommand),
+        fc.constant(gcCommand),
+        fc.constant(tickCommand),
+      ],
+      { size: `+1` },
+    ),
+  }),
 ])(
-  `keyalesce prunes nodes of reclaimed keys with prefix values`,
-  async ([values, indices]) => {
-    for (const index of indices) {
-      keyalesce(values.slice(0, index))
-    }
+  `keyalesce keeps held keys and prunes reclaimed keys and values across calls and garbage collection`,
+  async ({ sequences, commands }) => {
+    const model = createModel(sequences)
+    const real: Real = structuredClone(sequences)
 
+    await fc.asyncModelRun(() => ({ model, real }), commands)
+
+    await expectTrieToContainLiveHeldKeys(model)
+    model.held.clear()
     await gc()
-
     expect(getKeys(rootNode)).toBeEmpty()
     expect(getInvalidNodes(rootNode)).toBeEmpty()
-
-    // Ensure values can't be reclaimed by `gc` above.
-    expect(values).toBe(values)
   },
 )
 
-test.prop([
-  fc.array(
-    fc.array(
-      fc.record({
-        value: anythingArb,
-        shouldKeepValue: fc.boolean(),
-      }),
-    ),
-  ),
-])(`keyalesce prunes nodes of keys with reclaimed values`, async arrays => {
-  const keys: Key[] = arrays.map(values =>
-    keyalesce(values.map(({ value }) => value)),
-  )
-  pipe(
-    arrays,
-    flatMap(values =>
-      pipe(
-        values,
-        index,
-        flatMap(([index, { value, shouldKeepValue }]) =>
-          isObject(value) && !shouldKeepValue ? [[values, index] as const] : [],
-        ),
-      ),
-    ),
-    forEach(([values, index]) => (values[index]!.value = null)),
-  )
-  const keptKeys = pipe(
-    arrays,
-    index,
-    filter(([, values]) =>
-      values.every(({ value }) => !isObject(value) || Boolean(value)),
-    ),
-    map(([index]) => keys[index]),
-    reduce(toSet()),
-  )
-
+const expectTrieToContainLiveHeldKeys = async (model: Model) => {
   await gc()
 
-  expect(getKeys(rootNode)).toStrictEqual(keptKeys)
-  expect(getInvalidNodes(rootNode)).toStrictEqual(new Set())
-
-  // Ensure keys can't be reclaimed by `gc` above.
-  expect(keys).toBe(keys)
-})
+  const idByKey = pipe(
+    model.held,
+    map(([id, key]) => [key, id] as const),
+    reduce(toMap()),
+  )
+  expect(
+    pipe(
+      getKeys(rootNode),
+      map(key => idByKey.get(key)),
+      reduce(toSet()),
+    ),
+  ).toStrictEqual(
+    pipe(
+      model.held.keys(),
+      filter(id => isLive(model, id)),
+      reduce(toSet()),
+    ),
+  )
+  expect(getInvalidNodes(rootNode)).toBeEmpty()
+}
 
 const isObject = (value: unknown): value is object => {
   const type = typeof value

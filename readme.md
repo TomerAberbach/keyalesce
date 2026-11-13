@@ -33,7 +33,7 @@
 ## Features
 
 - **Simple:** a single function that takes an array and returns a key
-- **Tiny:** 593 bytes gzipped!
+- **Tiny:** 619 bytes gzipped!
 - **Performant:** maintains a regularly pruned internal
   [trie](https://en.wikipedia.org/wiki/Trie) of the value sequences
 

@@ -7,7 +7,7 @@ export default defineConfig({
     coverage: {
       include: [`src`],
     },
-    testTimeout: 60_000,
+    testTimeout: 300_000,
     execArgv: [`--expose-gc`],
   },
 })

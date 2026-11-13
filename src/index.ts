@@ -61,8 +61,7 @@ const isObject = (value: unknown): value is object => {
   return type === `object` ? value !== null : type === `function`
 }
 
-const findOrCreateKey = (nodesAndRefs: NodesAndRefs): Key => {
-  const [nodes, refs] = nodesAndRefs
+const findOrCreateKey = ([nodes, refs]: NodesAndRefs): Key => {
   const lastNode = nodes.at(-1)!
 
   let key = lastNode.keyRef?.deref()
@@ -71,30 +70,37 @@ const findOrCreateKey = (nodesAndRefs: NodesAndRefs): Key => {
   }
 
   key = Object.freeze(Object.create(null) as object)
-  lastNode.keyRef = new WeakRef(key)
+  const keyRef = new WeakRef(key)
+  lastNode.keyRef = keyRef
 
   // We can't only depend on the refs for pruning because they may be reclaimed
   // and then we won't have a way to find the nodes that might need to be pruned
   // without traversing the whole trie.
-  registry.register(key, nodesAndRefs, nodesAndRefs)
+  const registration: Registration = [nodes, refs, keyRef]
+  registry.register(key, registration, registration)
   for (const { weak } of refs) {
     if (weak) {
-      registry.register(weak.deref()!, nodesAndRefs, nodesAndRefs)
+      registry.register(weak.deref()!, registration, registration)
     }
   }
 
   return key
 }
 
-const registry = new FinalizationRegistry<NodesAndRefs>(nodesAndRefs => {
+const registry = new FinalizationRegistry<Registration>(registration => {
   // Unregister other callbacks for the same key. We'll clean up everything now.
-  registry.unregister(nodesAndRefs)
+  registry.unregister(registration)
 
-  const [nodes, refs] = nodesAndRefs
+  const [nodes, refs, keyRef] = registration
 
-  // Free the key and remove reclaimed weak refs from affected nodes.
+  // Free the key and remove reclaimed weak refs from affected nodes. Free the
+  // key only if it's this registration's, because keyalesce may have stored a
+  // new key for the same sequence before this callback ran.
   const lastIndex = nodes.length - 1
-  delete nodes[lastIndex]!.keyRef
+  const lastNode = nodes[lastIndex]!
+  if (lastNode.keyRef === keyRef) {
+    delete lastNode.keyRef
+  }
   for (const node of nodes) {
     removeReclaimedEdges(node)
   }
@@ -174,6 +180,8 @@ const removeStrongEdgeToEmptyNode = (node: TrieNode, strong: Primitive) => {
 }
 
 type NodesAndRefs = [TrieNode[], Ref[]]
+
+type Registration = [...NodesAndRefs, WeakRef<Key>]
 
 type Ref =
   | { weak: WeakRef<object>; strong?: never }
