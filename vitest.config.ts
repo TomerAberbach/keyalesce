@@ -8,5 +8,6 @@ export default defineConfig({
     },
     testTimeout: 300_000,
     execArgv: [`--expose-gc`],
+    unstubGlobals: true,
   },
 })
