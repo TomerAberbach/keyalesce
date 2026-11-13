@@ -1,18 +1,35 @@
 import type { Key, Primitive, TrieNode } from './node.ts'
 import { rootNode } from './node.ts'
 
-const keyalesce = (iterable: Iterable<unknown>): Key =>
+const keyalesce = (iterable: Iterable<unknown>): Key => {
   // Finish iterating before modifying the trie because iterating can throw.
-  findOrCreateKey(createNodesAndRefs([...iterable]))
+  const values = [...iterable] as Value[]
+  return findKey(values) ?? createKey(createNodesAndRefs(values))
+}
 export default keyalesce
 
-const createNodesAndRefs = (values: unknown[]): NodesAndRefs => {
+// Walks the trie without building the path that `createKey` needs, so looking
+// up an existing key allocates nothing.
+const findKey = (values: Value[]): Key | undefined => {
+  let node: TrieNode | undefined = rootNode
+  for (const value of values) {
+    node = isObject(value)
+      ? node.weakEdges?.get(value)
+      : node.strongEdges?.get(value)
+    if (!node) {
+      return undefined
+    }
+  }
+  return node.keyRef?.deref()
+}
+
+const createNodesAndRefs = (values: Value[]): NodesAndRefs => {
   // Find the node path corresponding to the values. Classify each value as
   // object or primitive and create new nodes for new paths through the trie.
   const nodes = [rootNode]
   const refs: Ref[] = []
   let node = rootNode
-  for (const value of values as (object | Primitive)[]) {
+  for (const value of values) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let edges: MapLike<any, TrieNode>
 
@@ -62,17 +79,10 @@ const isObject = (value: unknown): value is object => {
   return type === `object` ? value !== null : type === `function`
 }
 
-const findOrCreateKey = ([nodes, refs]: NodesAndRefs): Key => {
-  const lastNode = nodes.at(-1)!
-
-  let key = lastNode.keyRef?.deref()
-  if (key) {
-    return key
-  }
-
-  key = Object.freeze(Object.create(null) as object)
+const createKey = ([nodes, refs]: NodesAndRefs): Key => {
+  const key = Object.freeze(Object.create(null) as object)
   const keyRef = new WeakRef(key)
-  lastNode.keyRef = keyRef
+  nodes.at(-1)!.keyRef = keyRef
 
   // We can't only depend on the refs for pruning because they may be reclaimed
   // and then we won't have a way to find the nodes that might need to be pruned
@@ -191,3 +201,5 @@ type Registration = [...NodesAndRefs, WeakRef<Key>]
 type Ref =
   | { weak: WeakRef<object>; strong?: never }
   | { weak?: never; strong: Primitive }
+
+type Value = object | Primitive
