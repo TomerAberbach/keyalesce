@@ -1,4 +1,17 @@
-export const rootNode: TrieNode = {}
+// `resetRootNode` reassigns this binding.
+// eslint-disable-next-line import/no-mutable-exports
+export let rootNode: TrieNode = {}
+
+/**
+ * Replaces the root node with an empty one, so a test run that corrupts the
+ * trie doesn't fail later runs. Finalizers registered before the reset modify
+ * only the old trie.
+ *
+ * Internal only.
+ */
+export const resetRootNode = (): void => {
+  rootNode = {}
+}
 
 /**
  * A single node in the trie.
