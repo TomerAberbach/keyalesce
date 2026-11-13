@@ -138,8 +138,10 @@ const registry = new FinalizationRegistry<Registration>(registration => {
   if (lastNode.keyRef === keyRef) {
     delete lastNode.keyRef
   }
-  for (const node of nodes) {
-    removeReclaimedEdges(node)
+  for (const [index, { weak }] of refs.entries()) {
+    if (weak && !weak.deref()) {
+      removeWeakRef(nodes[index]!, weak)
+    }
   }
 
   for (
@@ -157,22 +159,16 @@ const registry = new FinalizationRegistry<Registration>(registration => {
   }
 })
 
-const removeReclaimedEdges = (node: TrieNode): void => {
+// An object's reclaimed WeakRef stays in the set of every node with an edge
+// for the object until a finalizer removes it. Every such edge is on the path
+// of a registration for the object, so the finalizers that run when the object
+// is reclaimed remove all of them.
+const removeWeakRef = (node: TrieNode, weak: WeakRef<object>): void => {
   const { weakRefs } = node
-  if (!weakRefs) {
-    return
+  if (weakRefs?.delete(weak) && !weakRefs.size) {
+    delete node.weakEdges
+    delete node.weakRefs
   }
-
-  // Some objects may have been reclaimed. Remove WeakRefs to reclaimed objects
-  // from the set for space efficiency and to have an accurate count of the
-  // number of keys in the WeakMap.
-  for (const ref of weakRefs) {
-    if (!ref.deref()) {
-      weakRefs.delete(ref)
-    }
-  }
-
-  removeEmptyWeakEdges(node)
 }
 
 const isEmptyNode = ({ keyRef, strongEdges, weakRefs }: TrieNode): boolean =>
@@ -188,21 +184,13 @@ const removeWeakEdgeToEmptyNode = (
   emptyNode: TrieNode,
 ) => {
   const value = weak.deref()
-  const { weakEdges, weakRefs } = node
+  const { weakEdges } = node
   if (!value || weakEdges?.get(value) !== emptyNode) {
     return
   }
 
   weakEdges.delete(value)
-  weakRefs!.delete(weak)
-  removeEmptyWeakEdges(node)
-}
-
-const removeEmptyWeakEdges = (node: TrieNode): void => {
-  if (!node.weakRefs!.size) {
-    delete node.weakEdges
-    delete node.weakRefs
-  }
+  removeWeakRef(node, weak)
 }
 
 const removeStrongEdgeToEmptyNode = (
