@@ -1,7 +1,7 @@
 import { setTimeout } from 'node:timers/promises'
 import { fc, test } from '@fast-check/vitest'
 import { any, filter, flatMap, map, pipe, reduce, toSet } from 'lfi'
-import { afterEach, beforeEach, expect } from 'vitest'
+import { afterEach, beforeEach, expect, vi } from 'vitest'
 import keyalesce from './index.ts'
 import type { Key, TrieNode } from './node.ts'
 import { resetRootNode, rootNode } from './node.ts'
@@ -395,3 +395,98 @@ const traverseNodes = (node: TrieNode): Iterable<TrieNode> => ({
     } while (stack.length > 0)
   },
 })
+
+test.each([
+  [`a primitive`, 1],
+  [`an object`, {}],
+])(
+  `a stale finalizer keeps the newer key for a sequence of %s`,
+  async (_, value) => {
+    const { keyalesce, reclaim, finalize } = await importWithManualGc()
+    const prefixKey = keyalesce([value])
+    const extendedKey = keyalesce([value, 2])
+    reclaim(prefixKey, extendedKey)
+    finalize(extendedKey)
+    const newPrefixKey = keyalesce([value])
+
+    finalize(prefixKey)
+
+    expect(keyalesce([value])).toBe(newPrefixKey)
+  },
+)
+
+/**
+ * Imports a fresh keyalesce with fake `WeakRef` and `FinalizationRegistry`
+ * globals, so the test chooses when values are reclaimed and when their
+ * finalizers run.
+ *
+ * Engines may run the finalizers of reclaimed values in separate tasks, with
+ * other code running in between, but V8 runs them all in one task.
+ */
+const importWithManualGc = async (): Promise<{
+  keyalesce: (iterable: Iterable<unknown>) => Key
+  reclaim: (...values: object[]) => void
+  finalize: (value: object) => void
+}> => {
+  const reclaimed = new Set<object>()
+  const registrations = new Set<{
+    registry: FakeFinalizationRegistry
+    target: object
+    heldValue: unknown
+    token: unknown
+  }>()
+
+  class FakeWeakRef<T extends object> {
+    readonly #target: T
+
+    public constructor(target: T) {
+      this.#target = target
+    }
+
+    public deref(): T | undefined {
+      return reclaimed.has(this.#target) ? undefined : this.#target
+    }
+  }
+
+  class FakeFinalizationRegistry {
+    public readonly cleanup: (heldValue: unknown) => void
+
+    public constructor(cleanup: (heldValue: unknown) => void) {
+      this.cleanup = cleanup
+    }
+
+    public register(target: object, heldValue: unknown, token: unknown): void {
+      registrations.add({ registry: this, target, heldValue, token })
+    }
+
+    public unregister(token: unknown): void {
+      for (const registration of registrations) {
+        if (registration.registry === this && registration.token === token) {
+          registrations.delete(registration)
+        }
+      }
+    }
+  }
+
+  vi.stubGlobal(`WeakRef`, FakeWeakRef)
+  vi.stubGlobal(`FinalizationRegistry`, FakeFinalizationRegistry)
+  vi.resetModules()
+  const { default: keyalesce } = await import(`./index.ts`)
+
+  return {
+    keyalesce,
+    reclaim: (...values) => {
+      for (const value of values) {
+        reclaimed.add(value)
+      }
+    },
+    finalize: value => {
+      for (const registration of registrations) {
+        if (registration.target === value) {
+          registrations.delete(registration)
+          registration.registry.cleanup(registration.heldValue)
+        }
+      }
+    },
+  }
+}

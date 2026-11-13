@@ -114,9 +114,9 @@ const registry = new FinalizationRegistry<Registration>(registration => {
     const node = nodes[index - 1]!
     const ref = refs[index - 1]!
     if (ref.weak) {
-      removeWeakEdgeToEmptyNode(node, ref.weak)
+      removeWeakEdgeToEmptyNode(node, ref.weak, nodes[index]!)
     } else {
-      removeStrongEdgeToEmptyNode(node, ref.strong)
+      removeStrongEdgeToEmptyNode(node, ref.strong, nodes[index]!)
     }
   }
 })
@@ -145,20 +145,22 @@ const removeReclaimedEdges = (node: TrieNode): void => {
 const isEmptyNode = ({ keyRef, strongEdges, weakRefs }: TrieNode): boolean =>
   !keyRef?.deref() && !strongEdges?.size && !weakRefs?.size
 
-const removeWeakEdgeToEmptyNode = (node: TrieNode, weak: WeakRef<object>) => {
-  // The value was already reclaimed.
-  if (!weak.deref()) {
-    return
-  }
-
-  // It's possible this node was already cleaned up if multiple keys, where one
-  // is a prefix of another, were reclaimed at the same time.
+// The edge-removal functions remove an edge only if it still leads to the
+// emptied node. A finalizer's path may be stale: another finalizer may have
+// already removed the edge, and keyalesce may have since added an edge for the
+// same value to a new node.
+const removeWeakEdgeToEmptyNode = (
+  node: TrieNode,
+  weak: WeakRef<object>,
+  emptyNode: TrieNode,
+) => {
+  const value = weak.deref()
   const { weakEdges, weakRefs } = node
-  if (!weakEdges) {
+  if (!value || weakEdges?.get(value) !== emptyNode) {
     return
   }
 
-  weakEdges.delete(weak.deref()!)
+  weakEdges.delete(value)
   weakRefs!.delete(weak)
   if (!weakRefs!.size) {
     delete node.weakEdges
@@ -166,11 +168,13 @@ const removeWeakEdgeToEmptyNode = (node: TrieNode, weak: WeakRef<object>) => {
   }
 }
 
-const removeStrongEdgeToEmptyNode = (node: TrieNode, strong: Primitive) => {
-  // It's possible this node was already cleaned up if multiple keys, where one
-  // is a prefix of another, were reclaimed at the same time.
+const removeStrongEdgeToEmptyNode = (
+  node: TrieNode,
+  strong: Primitive,
+  emptyNode: TrieNode,
+) => {
   const { strongEdges } = node
-  if (!strongEdges) {
+  if (strongEdges?.get(strong) !== emptyNode) {
     return
   }
 
