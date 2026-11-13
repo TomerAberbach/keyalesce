@@ -1,6 +1,6 @@
 import { setTimeout } from 'node:timers/promises'
 import { fc, test } from '@fast-check/vitest'
-import { any, filter, flatMap, map, pipe, reduce, toMap, toSet } from 'lfi'
+import { any, filter, flatMap, map, pipe, reduce, toSet } from 'lfi'
 import { afterEach, beforeEach, expect } from 'vitest'
 import keyalesce from './index.ts'
 import type { Key, TrieNode } from './node.ts'
@@ -58,10 +58,18 @@ type Model = {
   /** The IDs of the objects in each sequence. */
   objectIds: number[][]
 
-  objectCount: number
+  /** The objects in the sequences, by object ID. */
+  objects: WeakRef<object>[]
+
   held: Map<number, Key>
+
+  /** Every key keyalesce returned, with its sequence ID. */
+  returned: Returned[]
+
   dropped: Set<number>
 }
+
+type Returned = { id: number; ref: WeakRef<Key> }
 
 type Real = (unknown[] | undefined)[]
 
@@ -83,14 +91,23 @@ const createModel = (sequences: unknown[][]): Model => {
       sequences.findIndex(other => isSameSequence(other, sequence)),
     ),
     objectIds,
-    objectCount: ids.size,
+    objects: ids
+      .keys()
+      .map(value => new WeakRef(value))
+      .toArray(),
     held: new Map(),
+    returned: [],
     dropped: new Set(),
   }
 }
 
+/** Whether the sequence can still be passed to keyalesce. */
 const isLive = (model: Readonly<Model>, index: number): boolean =>
   model.objectIds[index]!.every(id => !model.dropped.has(id))
+
+/** Whether every object in the sequence is still alive. */
+const isReachable = (model: Readonly<Model>, index: number): boolean =>
+  model.objectIds[index]!.every(id => model.objects[id]!.deref() !== undefined)
 
 const command = ({
   check = () => true,
@@ -131,6 +148,9 @@ const callCommand = (rawIndex: number): ModelCommand =>
         }
       }
 
+      if (!heldKey) {
+        model.returned.push({ id, ref: new WeakRef(key) })
+      }
       model.held.set(id, key)
     },
     description: `call(${rawIndex})`,
@@ -149,9 +169,9 @@ const releaseCommand = (rawIndex: number): ModelCommand => {
 }
 
 const dropValueCommand = (rawIndex: number): ModelCommand => {
-  const idIn = (model: Readonly<Model>) => rawIndex % model.objectCount
+  const idIn = (model: Readonly<Model>) => rawIndex % model.objects.length
   return command({
-    check: model => model.objectCount > 0 && !model.dropped.has(idIn(model)),
+    check: model => model.objects.length > 0 && !model.dropped.has(idIn(model)),
     run: (model, real) => {
       const id = idIn(model)
       model.dropped.add(id)
@@ -198,27 +218,74 @@ test.prop([
 ])(
   `keyalesce keeps held keys and prunes reclaimed keys and values across calls and garbage collection`,
   async ({ sequences, commands }) => {
-    const model = createModel(sequences)
-    const real: Real = structuredClone(sequences)
+    const real = structuredClone(sequences)
+    const model = createModel(real)
 
     await fc.asyncModelRun(() => ({ model, real }), commands)
 
-    await expectTrieToContainLiveHeldKeys(model)
+    await reclaim(model)
+    expectTrieToContainLiveKeys(model)
+
     model.held.clear()
-    await gc()
-    expect(getKeys(rootNode)).toBeEmpty()
-    expect(getInvalidNodes(rootNode)).toBeEmpty()
+    await reclaim(model)
+    expectTrieToContainLiveKeys(model)
   },
 )
 
-const expectTrieToContainLiveHeldKeys = async (model: Model) => {
-  await gc()
+const HAS_CONSERVATIVE_GC = `Bun` in globalThis
 
-  const idByKey = pipe(
-    model.held,
-    map(([id, key]) => [key, id] as const),
-    reduce(toMap()),
+/**
+ * Collects garbage until every released key and dropped value is reclaimed.
+ *
+ * V8, which Node and Deno use, scans the stack precisely, so a few collections
+ * reclaim every unreachable object, and an object that survives them leaked.
+ *
+ * JavaScriptCore, which Bun uses, scans the stack conservatively. A stale copy
+ * of an object's address in a stack slot or register keeps the object alive
+ * until something overwrites it, which can take any number of collections. The
+ * engine stays consistent while it does: the object's finalizer doesn't run, so
+ * keyalesce keeps its trie entry. On Bun, this gives up after a few rounds
+ * instead of failing, and `expectTrieToContainLiveKeys` checks the trie against
+ * whatever is still alive. That can't tell a leak from a stale address, so the
+ * property can't detect a leak on Bun.
+ */
+const reclaim = async (model: Readonly<Model>): Promise<void> => {
+  const maxRounds = HAS_CONSERVATIVE_GC ? 5 : 100
+  let rounds = 0
+  let unreclaimed: boolean
+  do {
+    await gc()
+    rounds++
+    unreclaimed = hasUnreclaimed(model)
+  } while (unreclaimed && rounds < maxRounds)
+  if (unreclaimed && !HAS_CONSERVATIVE_GC) {
+    throw new Error(`A released key or dropped value was never reclaimed`)
+  }
+}
+
+const hasUnreclaimed = (model: Readonly<Model>): boolean => {
+  const held = new Set<Key>(model.held.values())
+  return (
+    model.returned.some(({ ref }) => {
+      const key = ref.deref()
+      return key !== undefined && !held.has(key)
+    }) || model.dropped.values().some(id => model.objects[id]!.deref())
   )
+}
+
+/**
+ * Checks that the trie contains exactly the returned keys that are alive and
+ * whose sequence is reachable.
+ */
+const expectTrieToContainLiveKeys = (model: Readonly<Model>): void => {
+  const idByKey = new Map<Key, number>()
+  for (const { id, ref } of model.returned) {
+    const key = ref.deref()
+    if (key !== undefined) {
+      idByKey.set(key, id)
+    }
+  }
+
   expect(
     pipe(
       getKeys(rootNode),
@@ -227,8 +294,8 @@ const expectTrieToContainLiveHeldKeys = async (model: Model) => {
     ),
   ).toStrictEqual(
     pipe(
-      model.held.keys(),
-      filter(id => isLive(model, id)),
+      idByKey.values(),
+      filter(id => isReachable(model, id)),
       reduce(toSet()),
     ),
   )
