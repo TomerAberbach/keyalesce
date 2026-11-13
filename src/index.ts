@@ -1,6 +1,32 @@
 import type { Key, Primitive, TrieNode } from './node.ts'
 import { rootNode } from './node.ts'
 
+/**
+ * Returns a frozen key with no prototype for the sequence of values in
+ * `iterable`.
+ *
+ * Returns the same key for equal sequences while the key is reachable. Two
+ * sequences are equal if they have the same length and their values at each
+ * index are equal by
+ * [SameValueZero](https://tc39.es/ecma262/#sec-samevaluezero), so objects are
+ * compared by identity, `NaN` equals `NaN`, and `0` equals `-0`.
+ *
+ * keyalesce holds keys and the objects in sequences weakly. Once a key is
+ * reclaimed, the next call for its sequence returns a new key.
+ *
+ * @example
+ * ```js
+ * const hangouts = new Set()
+ * hangouts.add(keyalesce([`Tomer`, `Samuel`]))
+ *
+ * console.log(hangouts.has(keyalesce([`Tomer`, `Samuel`])))
+ * //=> true
+ * console.log(hangouts.has(keyalesce([`Samuel`, `Tomer`])))
+ * //=> false
+ * ```
+ *
+ * @see https://tomeraberba.ch/the-making-of-keyalesce
+ */
 const keyalesce = (iterable: Iterable<unknown>): Key => {
   // Finish iterating before modifying the trie because iterating can throw.
   const values = [...iterable] as Value[]
