@@ -2,16 +2,17 @@ import type { Key, Primitive, TrieNode } from './node.ts'
 import { rootNode } from './node.ts'
 
 const keyalesce = (iterable: Iterable<unknown>): Key =>
-  findOrCreateKey(createNodesAndRefs(iterable))
+  // Finish iterating before modifying the trie because iterating can throw.
+  findOrCreateKey(createNodesAndRefs([...iterable]))
 export default keyalesce
 
-const createNodesAndRefs = (iterable: Iterable<unknown>): NodesAndRefs => {
+const createNodesAndRefs = (values: unknown[]): NodesAndRefs => {
   // Find the node path corresponding to the values. Classify each value as
   // object or primitive and create new nodes for new paths through the trie.
   const nodes = [rootNode]
   const refs: Ref[] = []
   let node = rootNode
-  for (const value of iterable as Iterable<object | Primitive>) {
+  for (const value of values as (object | Primitive)[]) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let edges: MapLike<any, TrieNode>
 

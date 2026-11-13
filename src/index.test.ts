@@ -156,6 +156,29 @@ const callCommand = (rawIndex: number): ModelCommand =>
     description: `call(${rawIndex})`,
   })
 
+/** Calls keyalesce with a prefix of a sequence, then throws while iterating. */
+const throwingCallCommand = (
+  rawIndex: number,
+  rawLength: number,
+): ModelCommand =>
+  command({
+    check: model => isLive(model, sequenceIndex(model, rawIndex)),
+    run: (model, real) => {
+      const sequence = real[sequenceIndex(model, rawIndex)]!
+      const length = rawLength % (sequence.length + 1)
+      const error = new Error(`Iteration failed`)
+      expect(() =>
+        keyalesce(
+          (function* () {
+            yield* sequence.slice(0, length)
+            throw error
+          })(),
+        ),
+      ).toThrow(error)
+    },
+    description: `throwingCall(${rawIndex}, ${rawLength})`,
+  })
+
 const releaseCommand = (rawIndex: number): ModelCommand => {
   const idIn = (model: Readonly<Model>) =>
     model.sequenceIds[sequenceIndex(model, rawIndex)]!
@@ -207,6 +230,11 @@ test.prop([
     commands: fc.commands(
       [
         fc.nat().map(callCommand),
+        fc
+          .tuple(fc.nat(), fc.nat())
+          .map(([rawIndex, rawLength]) =>
+            throwingCallCommand(rawIndex, rawLength),
+          ),
         fc.nat().map(releaseCommand),
         fc.nat().map(dropValueCommand),
         fc.constant(gcCommand),
