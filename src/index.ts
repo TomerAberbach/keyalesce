@@ -146,10 +146,7 @@ const removeReclaimedEdges = (node: TrieNode): void => {
     }
   }
 
-  if (!weakRefs.size) {
-    delete node.weakEdges
-    delete node.weakRefs
-  }
+  removeEmptyWeakEdges(node)
 }
 
 const isEmptyNode = ({ keyRef, strongEdges, weakRefs }: TrieNode): boolean =>
@@ -172,7 +169,11 @@ const removeWeakEdgeToEmptyNode = (
 
   weakEdges.delete(value)
   weakRefs!.delete(weak)
-  if (!weakRefs!.size) {
+  removeEmptyWeakEdges(node)
+}
+
+const removeEmptyWeakEdges = (node: TrieNode): void => {
+  if (!node.weakRefs!.size) {
     delete node.weakEdges
     delete node.weakRefs
   }
