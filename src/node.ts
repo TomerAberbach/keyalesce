@@ -23,6 +23,14 @@ export const resetRootNode = (): void => {
  * or keys have no strong references to them.
  */
 export type TrieNode = {
+  /**
+   * The edge from the parent to this node, or none for the root. The tuple
+   * contains the edge's value and the parent, with an object value stored as a
+   * weak ref. Each edge creates its own weak ref, so a parent's set of weak
+   * refs contains one per object.
+   */
+  parentEdge?: [WeakRef<object> | Primitive, TrieNode]
+
   keyRef?: WeakRef<Key>
   strongEdges?: Map<Primitive, TrieNode>
   weakEdges?: WeakMap<object, TrieNode>
