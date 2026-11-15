@@ -29,192 +29,114 @@ import { rootNode } from './node.ts'
  */
 const keyalesce = (iterable: Iterable<unknown>): Key => {
   // Finish iterating before modifying the trie because iterating can throw.
-  const values = [...iterable] as Value[]
-  return findKey(values) ?? createKey(createNodesAndRefs(values))
-}
-export default keyalesce
+  const values = [...iterable] as (object | Primitive)[]
 
-// Walks the trie without building the path that `createKey` needs, so looking
-// up an existing key allocates nothing.
-const findKey = (values: Value[]): Key | undefined => {
-  let node: TrieNode | undefined = rootNode
-  for (const value of values) {
-    node = isObject(value)
-      ? node.weakEdges?.get(value)
-      : node.strongEdges?.get(value)
-    if (!node) {
-      return undefined
-    }
-  }
-  return node.keyRef?.deref()
-}
-
-const createNodesAndRefs = (values: Value[]): NodesAndRefs => {
-  // Find the node path corresponding to the values. Classify each value as
-  // object or primitive and create new nodes for new paths through the trie.
-  const nodes = [rootNode]
-  const refs: Ref[] = []
+  // Walk the values' path, creating missing nodes. Walking an existing path
+  // allocates nothing.
   let node = rootNode
   for (const value of values) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let edges: MapLike<any, TrieNode>
-
-    if (isObject(value)) {
-      let weakRef = weakRefs.get(value)
-      if (!weakRef) {
-        weakRefs.set(value, (weakRef = new WeakRef(value)))
-      }
-      refs.push({ weak: weakRef })
-
-      edges =
-        node.weakEdges ??
-        ((node.weakRefs = new Set()), (node.weakEdges = new WeakMap()))
-      node.weakRefs!.add(weakRef)
-    } else {
-      refs.push({ strong: value })
-
-      // eslint-disable-next-line no-multi-assign
-      edges = node.strongEdges ??= new Map()
-    }
-
+    const weak = isObject(value)
+    const edges: Edges = weak
+      ? (node.weakEdges ??= new WeakMap())
+      : (node.strongEdges ??= new Map())
     let next = edges.get(value)
     if (!next) {
-      edges.set(value, (next = {}))
+      const edge = weak ? new WeakRef(value) : value
+      next = { parentEdge: [edge, node] }
+      if (weak) {
+        ;(node.weakRefs ??= new Set()).add(edge as WeakRef<object>)
+      }
+      edges.set(value, next)
     }
-    nodes.push((node = next))
+    node = next
   }
 
-  return [nodes, refs]
-}
+  const existingKey = node.keyRef?.deref()
+  if (existingKey) {
+    return existingKey
+  }
 
-type MapLike<K, V> = {
-  get: (key: K) => V | undefined
-  set: (key: K, value: V) => void
-}
+  const key = Object.freeze(Object.create(null) as object)
+  const keyRef = new WeakRef(key) as KeyRef
+  keyRef.trieNode = node
+  node.keyRef = keyRef
 
-/**
- * We need to ensure that we use the same WeakRef for the same object if it is
- * used in multiple intersecting paths. Otherwise, the WeakRef sets used for
- * tracking WeakMap size could have multiple WeakRefs for the same object and
- * the size would not reflect the true size of the WeakMap.
- */
-const weakRefs = new WeakMap<object, WeakRef<object>>()
+  // Register the key and the sequence's objects, so reclaiming any of them
+  // prunes the key's path without traversing the whole trie.
+  for (const value of [key, ...values]) {
+    if (isObject(value)) {
+      registry.register(value, keyRef, keyRef)
+    }
+  }
+  return key
+}
+export default keyalesce
 
 const isObject = (value: unknown): value is object => {
   const type = typeof value
   return type === `object` ? value !== null : type === `function`
 }
 
-const createKey = ([nodes, refs]: NodesAndRefs): Key => {
-  const key = Object.freeze(Object.create(null) as object)
-  const keyRef = new WeakRef(key)
-  nodes.at(-1)!.keyRef = keyRef
+const registry = new FinalizationRegistry<KeyRef>(keyRef => {
+  // Unregister the key's other callbacks, because this callback prunes the
+  // whole path.
+  registry.unregister(keyRef)
 
-  // We can't only depend on the refs for pruning because they may be reclaimed
-  // and then we won't have a way to find the nodes that might need to be pruned
-  // without traversing the whole trie.
-  const registration: Registration = [nodes, refs, keyRef]
-  registry.register(key, registration, registration)
-  for (const { weak } of refs) {
-    if (weak) {
-      registry.register(weak.deref()!, registration, registration)
-    }
-  }
-
-  return key
-}
-
-const registry = new FinalizationRegistry<Registration>(registration => {
-  // Unregister other callbacks for the same key. We'll clean up everything now.
-  registry.unregister(registration)
-
-  const [nodes, refs, keyRef] = registration
-
-  // Free the key and remove reclaimed weak refs from affected nodes. Free the
-  // key only if it's this registration's, because keyalesce may have stored a
-  // new key for the same sequence before this callback ran.
-  const lastIndex = nodes.length - 1
-  const lastNode = nodes[lastIndex]!
+  // Free the node's key only if it's the one this callback was registered for,
+  // because keyalesce may have stored a new key for the same sequence before
+  // this callback ran.
+  const lastNode = keyRef.trieNode
   if (lastNode.keyRef === keyRef) {
     delete lastNode.keyRef
   }
-  for (const [index, { weak }] of refs.entries()) {
-    if (weak && !weak.deref()) {
-      removeWeakRef(nodes[index]!, weak)
-    }
-  }
 
-  for (
-    let index = lastIndex;
-    index >= 1 && isEmptyNode(nodes[index]!);
-    index--
-  ) {
-    const node = nodes[index - 1]!
-    const ref = refs[index - 1]!
-    if (ref.weak) {
-      removeWeakEdgeToEmptyNode(node, ref.weak, nodes[index]!)
-    } else {
-      removeStrongEdgeToEmptyNode(node, ref.strong, nodes[index]!)
+  // Walk up from the key's node to the root. Remove reclaimed weak refs from
+  // every node on the path, and remove edges to empty nodes until reaching a
+  // nonempty node. Remove an edge only if it still leads to the node, because
+  // the path may be stale. Another finalizer may have already removed the edge,
+  // and keyalesce may have since added an edge for the same value to a new
+  // node.
+  let prune = true
+  for (let node = lastNode; node.parentEdge;) {
+    const isEmpty =
+      !node.keyRef?.deref() && !node.strongEdges?.size && !node.weakRefs?.size
+    prune &&= isEmpty
+    const [edge, parent] = node.parentEdge
+    const weak = isObject(edge)
+    const value = weak ? edge.deref() : edge
+    const edges: Edges | undefined = weak
+      ? parent.weakEdges
+      : parent.strongEdges
+    // A reclaimed value's edge is detached, because the value derefs to
+    // undefined and `WeakMap.get(undefined)` returns undefined.
+    const isAttached = edges?.get(value) === node
+    if (isAttached && prune) {
+      edges.delete(value)
     }
+    if (!isAttached || prune) {
+      if (weak) {
+        const { weakRefs } = parent
+        const emptiedWeakRefs = weakRefs?.delete(edge) && !weakRefs.size
+        if (emptiedWeakRefs) {
+          delete parent.weakEdges
+          delete parent.weakRefs
+        }
+      } else if (!parent.strongEdges?.size) {
+        delete parent.strongEdges
+      }
+    }
+
+    node = parent
   }
 })
 
-// An object's reclaimed WeakRef stays in the set of every node with an edge
-// for the object until a finalizer removes it. Every such edge is on the path
-// of a registration for the object, so the finalizers that run when the object
-// is reclaimed remove all of them.
-const removeWeakRef = (node: TrieNode, weak: WeakRef<object>): void => {
-  const { weakRefs } = node
-  if (weakRefs?.delete(weak) && !weakRefs.size) {
-    delete node.weakEdges
-    delete node.weakRefs
-  }
+type KeyRef = WeakRef<Key> & { trieNode: TrieNode }
+
+/** The operations shared by a node's weak and strong edge maps. */
+type Edges = {
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  get: (value: any) => TrieNode | undefined
+  set: (value: any, node: TrieNode) => void
+  delete: (value: any) => boolean
+  /* eslint-enable @typescript-eslint/no-explicit-any */
 }
-
-const isEmptyNode = ({ keyRef, strongEdges, weakRefs }: TrieNode): boolean =>
-  !keyRef?.deref() && !strongEdges?.size && !weakRefs?.size
-
-// The edge-removal functions remove an edge only if it still leads to the
-// emptied node. A finalizer's path may be stale: another finalizer may have
-// already removed the edge, and keyalesce may have since added an edge for the
-// same value to a new node.
-const removeWeakEdgeToEmptyNode = (
-  node: TrieNode,
-  weak: WeakRef<object>,
-  emptyNode: TrieNode,
-) => {
-  const value = weak.deref()
-  const { weakEdges } = node
-  if (!value || weakEdges?.get(value) !== emptyNode) {
-    return
-  }
-
-  weakEdges.delete(value)
-  removeWeakRef(node, weak)
-}
-
-const removeStrongEdgeToEmptyNode = (
-  node: TrieNode,
-  strong: Primitive,
-  emptyNode: TrieNode,
-) => {
-  const { strongEdges } = node
-  if (strongEdges?.get(strong) !== emptyNode) {
-    return
-  }
-
-  strongEdges.delete(strong)
-  if (!strongEdges.size) {
-    delete node.strongEdges
-  }
-}
-
-type NodesAndRefs = [TrieNode[], Ref[]]
-
-type Registration = [...NodesAndRefs, WeakRef<Key>]
-
-type Ref =
-  | { weak: WeakRef<object>; strong?: never }
-  | { weak?: never; strong: Primitive }
-
-type Value = object | Primitive
